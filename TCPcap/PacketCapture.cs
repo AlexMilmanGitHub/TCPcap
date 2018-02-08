@@ -238,12 +238,5 @@ namespace TCPcap
 
 
         }
-
-        private KeyValuePair<PacketPayloadStatistics, ulong> GetMaxOccurrences(PacketPayloadStatistics payload)
-        {
-            ulong max = payload.Occurrences;
-
-            return new KeyValuePair<PacketPayloadStatistics, ulong>(payload, max);
-        }
     }
 }
