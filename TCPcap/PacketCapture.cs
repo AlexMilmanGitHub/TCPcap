@@ -4,6 +4,7 @@ using PcapDotNet.Packets.IpV4;
 using PcapDotNet.Packets.Transport;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -36,12 +37,16 @@ namespace TCPcap
         const ushort BATCH_SIZE = 32;
         private static ulong _totalNumberOfPackets = 0;
         private static Dictionary<byte[], PacketPayloadStatistics> _packetDictionary = new Dictionary<byte[], PacketPayloadStatistics>();
-        
+        private static object _dictionaryLock = new object();
+
         public PacketCapture()
         {
-            initPcap();
+            Thread mainThread = new Thread(new ThreadStart(initPcap));
 
-            Thread calcStatsThread = new Thread(CalcStats);
+            Thread calcStatsThread = new Thread(new ThreadStart(CalcStats));
+
+            mainThread.Start();
+
             calcStatsThread.Start();
 
         }
@@ -189,17 +194,20 @@ namespace TCPcap
 
         private static void handleBatch(byte[] payloadBatch)
         {
-            if (_packetDictionary.ContainsKey(payloadBatch) == true)
+            lock (_dictionaryLock)
             {
-                _packetDictionary[payloadBatch].IncreaseOccurrence();
-            }
-            else if (_packetDictionary.Count >= DICTIONARY_SIZE_LIMIT)
-            {
-                handleDictionaryOversize(payloadBatch);
-            }
-            else // Otherwise just add to the Dictionary
-            {
-                _packetDictionary.Add(payloadBatch, new PacketPayloadStatistics());
+                if (_packetDictionary.ContainsKey(payloadBatch) == true)
+                {
+                    _packetDictionary[payloadBatch].IncreaseOccurrence();
+                }
+                else if (_packetDictionary.Count >= DICTIONARY_SIZE_LIMIT)
+                {
+                    handleDictionaryOversize(payloadBatch);
+                }
+                else // Otherwise just add to the Dictionary
+                {
+                    _packetDictionary.Add(payloadBatch, new PacketPayloadStatistics());
+                }
             }
         }
 
@@ -227,16 +235,36 @@ namespace TCPcap
         {
             while (true)
             {
+                using (StreamWriter file = new StreamWriter("DictionaryBackup.txt"))
+                {
+                    foreach (var entry in _packetDictionary)
+                    {
+                        lock (_dictionaryLock)
+                        {
+                            file.WriteLine("[{0},{1},{2}]", ByteArrayToString(entry.Key), entry.Value.Occurrences, entry.Value.Timestamp);
+                        }
+                    }
+                }
 
-                System.Threading.Thread.Sleep(60000);
 
-                if(_packetDictionary.Count > 0)
+                if (_packetDictionary.Count > 0)
                 {
                     ulong max = _packetDictionary.Values.Max(x => x.Occurrences);
                 }
+                System.Threading.Thread.Sleep(60000);
+            }
+        }
+
+        public static string ByteArrayToString(byte [] byteArray)
+        {
+            string resStr = String.Empty;
+
+            foreach(byte b in byteArray)
+            {
+                resStr += String.Format(" {0}",b);
             }
 
-
+            return resStr;
         }
     }
 }
