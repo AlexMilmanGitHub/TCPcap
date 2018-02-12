@@ -25,6 +25,13 @@ namespace TCPcap
             Timestamp = DateTime.Now;
         }
 
+        public PacketPayloadStatistics(ulong i_occurrences, DateTime i_timestamp)
+        {
+            Occurrences = i_occurrences;
+
+            Timestamp = i_timestamp;
+        }
+
         public void IncreaseOccurrence()
         {
             Occurrences += 1;
@@ -41,6 +48,8 @@ namespace TCPcap
 
         public PacketCapture()
         {
+            LoadDictionary();
+
             Thread mainThread = new Thread(new ThreadStart(initPcap));
 
             Thread calcStatsThread = new Thread(new ThreadStart(CalcStats));
@@ -49,6 +58,63 @@ namespace TCPcap
 
             calcStatsThread.Start();
 
+        }
+
+        private void LoadDictionary()
+        {
+            try
+            {   // Open the text file using a stream reader.
+
+                if (File.Exists("DictionaryBackup.txt"))
+                {
+                    using (StreamReader sr = new StreamReader("DictionaryBackup.txt"))
+                    {
+                        // Read the stream to a string, and write the string to the console.
+                        String line = sr.ReadToEnd();
+
+                        List<string> strList = line.Split('[').ToList();
+
+                        foreach(string listEntry in strList)
+                        {
+                            if(listEntry != String.Empty)
+                            {
+                                string[] str = listEntry.Split(',');
+
+                                string[] byteArray = str[0].Split(' ');
+
+                                List<byte> byteKeyArray = new List<byte>();
+                                foreach (string singleByte in byteArray)
+                                {
+                                    if(singleByte != String.Empty)
+                                    {
+                                        byteKeyArray.Add(Convert.ToByte(singleByte));
+                                    }
+                                }
+
+                                long occurences;
+
+                                bool occurencesSuccess = Int64.TryParse(str[1], out occurences);
+
+                                DateTime timestamp = Convert.ToDateTime(str[2].Replace("]", ""));
+
+                                lock (_dictionaryLock)
+                                {
+                                    _packetDictionary.Add(byteKeyArray.ToArray(), new PacketPayloadStatistics((ulong)occurences, timestamp));
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("The file could not be read:");
+                Console.WriteLine(e.Message);
+            }
         }
 
         private void initPcap()
@@ -237,11 +303,11 @@ namespace TCPcap
             {
                 using (StreamWriter file = new StreamWriter("DictionaryBackup.txt"))
                 {
-                    foreach (var entry in _packetDictionary)
+                    lock (_dictionaryLock)
                     {
-                        lock (_dictionaryLock)
+                        foreach (var entry in _packetDictionary)
                         {
-                            file.WriteLine("[{0},{1},{2}]", ByteArrayToString(entry.Key), entry.Value.Occurrences, entry.Value.Timestamp);
+                            file.Write("[{0},{1},{2}]", ByteArrayToString(entry.Key), entry.Value.Occurrences, entry.Value.Timestamp);
                         }
                     }
                 }
