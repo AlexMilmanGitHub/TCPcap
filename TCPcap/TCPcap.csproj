@@ -56,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="PacketCapture.cs" />
+    <Compile Include="PatternRecognition.cs" />
     <Compile Include="Service1.cs">
       <SubType>Component</SubType>
     </Compile>

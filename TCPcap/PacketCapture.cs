@@ -41,11 +41,12 @@ namespace TCPcap
     class PacketCapture
     {
         const int DICTIONARY_SIZE_LIMIT = Int16.MaxValue;
-        const ushort BATCH_SIZE = 32;
+        const ushort BATCH_SIZE = 800;
         private static ulong _totalNumberOfPackets = 0;
         private static Dictionary<byte[], PacketPayloadStatistics> _packetDictionary = new Dictionary<byte[], PacketPayloadStatistics>();
         private static object _dictionaryLock = new object();
-
+        private static string _totalPayload;
+        private static int _numOfOccurences = 0;
         public PacketCapture()
         {
             LoadDictionary();
@@ -243,6 +244,35 @@ namespace TCPcap
 
             byte[] tempArr = new byte[BATCH_SIZE];
 
+            string bArrAsStr = BitConverter.ToString(payload);
+
+            _totalPayload += " ";
+
+            _totalPayload += bArrAsStr;
+
+            string str = PatternRecognition.LongestRepeatedSubstring(_totalPayload, out _numOfOccurences);
+
+            var lenCommon = str.Length;
+            var len = _totalPayload.Length;
+
+            string copy = _totalPayload;
+
+            copy.Replace(str, "1234");
+
+            var copyLen = copy.Length;
+            //var str = Encoding.UTF8.GetString(payload);
+
+            //var str2 = Encoding.Default.GetString(payload);
+
+            //var str3 = Encoding.ASCII.GetString(payload);
+
+            //var index = str.IndexOf("111111111111111111111111111111");
+
+            //if(index >= 0)
+            //{
+            //    Console.WriteLine("30 1's!!!");
+            //}
+
             foreach (byte singleByte in payload)
             {
                 if(counter >= BATCH_SIZE)
@@ -269,6 +299,7 @@ namespace TCPcap
                 else if (_packetDictionary.Count >= DICTIONARY_SIZE_LIMIT)
                 {
                     handleDictionaryOversize(payloadBatch);
+                    ulong maxOccurrences = _packetDictionary.Values.Max(x => x.Occurrences);
                 }
                 else // Otherwise just add to the Dictionary
                 {
@@ -315,7 +346,10 @@ namespace TCPcap
 
                 if (_packetDictionary.Count > 0)
                 {
-                    ulong max = _packetDictionary.Values.Max(x => x.Occurrences);
+                    lock (_dictionaryLock)
+                    {
+                        ulong max = _packetDictionary.Values.Max(x => x.Occurrences);
+                    }
                 }
                 System.Threading.Thread.Sleep(60000);
             }
